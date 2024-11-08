@@ -1,0 +1,111 @@
+version: '2.3'
+services:
+    emby:
+        image: emby/embyserver
+        # runtime: nvidia # Expose NVIDIA GPUs
+        # network_mode: host # Enable DLNA and Wake-on-Lan
+        environment:
+            - UID=${UID} # The UID to run emby as (default: 2)
+            - GID=${GID} # The GID to run emby as (default 2)
+        volumes:
+            - ${DATA_PATH}/emby:/config # Configuration directory
+            - ${DATA_PATH}/tv:/tv # Media directory
+            - ${DATA_PATH}/movies:/movies # Media directory
+        ports:
+            - ${PORT}:8096 # HTTP port
+        # devices:
+        #   - /dev/dri:/dev/dri # VAAPI/NVDEC/NVENC render nodes
+        restart: on-failure
+
+    homarr:
+        image: ghcr.io/ajnart/homarr:latest
+        restart: always
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ${DATA_PATH}/homarr/configs:/app/data/configs
+            - ${DATA_PATH}/homarr/icons:/app/public/icons
+            - ${DATA_PATH}/homarr/data:/data
+        ports:
+            - ${PORT_HOMARR}:7575
+
+    # transmission:
+    #   image: haugene/transmission-openvpn
+    #   restart: always
+    #   ports:
+    #     - "${PORT_FLOOD}:9091"
+    #   # https://haugene.github.io/docker-transmission-openvpn/config-options/
+    #   environment:
+    #     - OPENVPN_PROVIDER=custom
+    #     - OPENVPN_CONFIG=${OPENVPN_CONFIG}
+    #     - OPENVPN_USERNAME=u # dummy
+    #     - OPENVPN_PASSWORD=p
+    #     - LOCAL_NETWORK=192.168.0.0/16
+    #     - WEBPROXY_ENABLED=false
+    #     - TRANSMISSION_WEB_UI=flood-for-transmission
+    #   volumes:
+    #     - ${DATA_PATH}/vpn:/etc/openvpn/custom
+    #     - ${DATA_PATH}/downloads:/data
+    #     - /etc/localtime:/etc/localtime:ro
+    #   cap_add:
+    #     - NET_ADMIN
+    transmission:
+        image: lscr.io/linuxserver/transmission
+        restart: always
+        environment:
+            - PUID=${UID}
+            - PGID=${GID}
+            - TZ=Asia/Kolkata
+            - TRANSMISSION_WEB_HOME=${TRANSMISSION_WEB_HOME} # Get flood from https://github.com/johman10/flood-for-transmission
+        volumes:
+            - ${DATA_PATH}/transmission:/config
+            - ${DATA_PATH}/downloads:/downloads
+            - ${DATA_PATH}/downloads/watch:/watch
+        ports:
+            - '${PORT_FLOOD}:9091'
+            - 51413:51413
+            - 51413:51413/udp
+        cap_add:
+            - NET_ADMIN
+
+    radarr:
+        image: linuxserver/radarr
+        restart: always
+        ports:
+            - '${PORT_RADARR}:7878'
+        environment:
+            - PGID=${GID}
+            - PUID=${UID}
+        volumes:
+            - ${DATA_PATH}/radarr:/config
+            - ${DATA_PATH}/movies:/movies
+            # - ${DATA_PATH}/downloads/completed:/downloads # transmission-openvpn
+            - ${DATA_PATH}/downloads:/downloads # transmission non-openvpn
+
+    sonarr:
+        image: linuxserver/sonarr
+        restart: always
+        ports:
+            - '${PORT_SONARR}:8989'
+        environment:
+            - PGID=${GID}
+            - PUID=${UID}
+        volumes:
+            - ${DATA_PATH}/sonarr:/config
+            - ${DATA_PATH}/tv:/tv
+            # - ${DATA_PATH}/downloads/completed:/downloads # transmission-openvpn
+            - ${DATA_PATH}/downloads:/downloads # transmission non-openvpn
+
+    prowlarr:
+        image: linuxserver/prowlarr
+        restart: always
+        ports:
+            - '${PORT_PROWLARR}:9696'
+        cap_add:
+            - NET_ADMIN
+        environment:
+            - PGID=${GID}
+            - PUID=${UID}
+        volumes:
+            - ${DATA_PATH}/prowlarr:/config
+            - ${DATA_PATH}/downloads/watch:/downloads # transmission watch directory
+            - /etc/localtime:/etc/localtime:ro
